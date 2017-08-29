@@ -23,7 +23,7 @@ data LimitOrder = LimitOrder {
   _lorder_user         :: UserId,
   _lorder_fromAmount   :: Amount,
   _lorder_toAmount     :: Amount
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Generic)
 
 data TBid
 data TAsk
@@ -36,7 +36,7 @@ type Ask = AskT LimitOrder
 data MarketOrder = MarketOrder {
   _morder_user   :: UserId,
   _morder_amount :: Amount
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Generic)
 
 type MBid = BidT MarketOrder
 type MAsk = AskT MarketOrder
@@ -49,23 +49,26 @@ data OrderBookF a = OrderBook {
   } deriving (Eq, Show, Functor, Traversable, Foldable)
 type OrderBook = OrderBookF LimitOrder
 
+newBook :: CurrencyPair -> OrderBook
+newBook (from, to) = OrderBook from to M.empty M.empty
+
 data SingleEntry = SingleEntry {
   _se_account  :: UserId,
   _se_currency :: Currency,
   _se_amount   :: Amount
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Generic)
 
 data DoubleEntry = DoubleEntry {
   _de_fromAccount :: UserId,
   _de_toAccount   :: UserId,
   _de_currency    :: Currency,
   _de_amount      :: Amount
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Generic)
 
 data TradeF a = Trade {
   _trade_from :: a,
   _trade_to   :: a
-  } deriving (Eq, Show, Functor, Traversable, Foldable)
+  } deriving (Eq, Show, Functor, Traversable, Foldable, Generic)
 type Trade = TradeF DoubleEntry
               
 type Balances = M.Map Currency Amount

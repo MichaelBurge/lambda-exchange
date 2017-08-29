@@ -26,6 +26,8 @@ library
                      , warp
                      , wai
                      , http-types
+                     , aeson
+                     , bytestring
   default-language:    Haskell2010
   default-extensions:  DeriveFunctor
                      , DeriveTraversable
@@ -36,6 +38,9 @@ library
                      , NoImplicitPrelude
                      , ImplicitParams
                      , RankNTypes
+                     , LambdaCase
+                     , TypeSynonymInstances
+                     , FlexibleInstances
 source-repository head
   type:     git
   location: https://github.com/MichaelBurge/lambda-exchange

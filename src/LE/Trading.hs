@@ -78,12 +78,31 @@ tryFillMBid mbid bals book@OrderBook{..} =
         (Just bid, trades, book) ->
           (Just $ bidToMbid bid, trades, book)
 
-mbidToBid :: OrderBook -> MBid -> Bid
-mbidToBid = undefined
+tryFillMAsk :: MAsk -> Balances -> OrderBook -> (Maybe MAsk, [Trade], OrderBook)
+tryFillMAsk mask bals book@OrderBook{..} =
+  case M.lookup _book_fromCurrency bals of
+    Nothing -> (Nothing, [], book)
+    Just x | x < 1 -> (Nothing, [], book)
+    Just fromBalance ->
+      let (Tagged MarketOrder{..}) = mask
+          ask = Tagged $ LimitOrder {
+            _lorder_user = _morder_user,
+            _lorder_fromAmount = fromBalance,
+            _lorder_toAmount = _morder_amount
+            }
+      in case matchAsk ask book of
+        (Nothing, trades, book) ->
+          (Nothing, trades, book)
+        (Just ask, trades, book) ->
+          (Just $ askToMask ask, trades, book)
+          
              
 bidToMbid :: Bid -> MBid
-bidToMbid (Tagged LimitOrder{..}) = undefined
-             
+bidToMbid (Tagged LimitOrder{..}) = Tagged $ MarketOrder _lorder_user _lorder_fromAmount
+
+askToMask :: Ask -> MAsk
+askToMask (Tagged LimitOrder{..}) = Tagged $ MarketOrder _lorder_user _lorder_toAmount
+  
 matchBid :: Bid -> OrderBook -> (Maybe Bid, [Trade], OrderBook)
 matchBid bid book =
   let pair = _book_pair book
@@ -189,29 +208,26 @@ mergeBid (fromCurrency, toCurrency) bid ask =
      else (Just bid, Just ask, Nothing)
 
 unsafe_addBid :: Bid -> OrderBook -> OrderBook
-unsafe_addBid bid book@OrderBook{..} = undefined
-  -- book { _book_bids = _book_bids Q.|> bid }
+unsafe_addBid bid book@OrderBook{..} =
+  let k = price $ unTagged bid
+      bids = case M.lookup k _book_bids of
+        Nothing -> Q.empty
+        Just bids -> bids
+      newBids = bids Q.|> bid
+  in book { _book_bids = M.insert k newBids _book_bids }
 
 unsafe_addAsk :: Ask -> OrderBook -> OrderBook
-unsafe_addAsk = undefined
--- unsafe_addAsk ask book@OrderBOok{..} =
---   book { _book_asks = _books_asks |> ask }
+unsafe_addAsk ask book@OrderBook{..} =
+  let k = price $ unTagged ask
+      asks = case M.lookup k _book_asks of
+        Nothing -> Q.empty
+        Just asks -> asks
+      newAsks = asks Q.|> ask
+  in book { _book_asks = M.insert k newAsks _book_asks }
 
 isBid :: LimitOrder -> Bool
 isBid order =  _lorder_fromAmount order > 0
 
--- findTrade :: OrderBook -> Maybe Trade
--- findTrade book =
---   let orders1 = _book_orders book
---       ((fromAmt, fromOrders), orders2) = deleteFindMin orders1
---       ((toAmt, toOrders), orders3)     = deleteFindMax orders2
---       fromOrder = 
---   in if fromAmt + toAmt < 0
---      then 
-  
---   (fromAmt, fromOrders) <- 
---   (toAmt, toOrders) <- deleteFindMax $ _book_orders book
-  
 userBalances :: Exchange -> STM (M.Map UserId Balances)
 userBalances = undefined
 
@@ -220,62 +236,3 @@ bookBalances = undefined
 
 userBookBalances :: Exchange -> UserId -> STM Balances
 userBookBalances = undefined
-
-
---- SANITY CHECKS
-
--- consistency_noNegativeBalances :: ConsistencyCheck
--- consistency_noNegativeBalances = \exchange -> do
---   bals <- userBalances exchange
---   let checkUser (userId, balances) =
---         flip all (M.toList balances) $ \(currency, balance) ->
---         balance >= 0
---   return $ all checkUser $ M.toList bals
-
--- consistency_ordersBackedByAccount :: ConsistencyCheck
--- consistency_ordersBackedByAccount = \exchange -> do
---   usersBals <- userBalances exchange
-
---   let checkUserBalance :: Balances -> (Currency, Amount) -> Bool
---       checkUserBalance userBals (currency, bookAmount) =
---         case M.lookup currency userBals of
---           Nothing -> False
---           Just userAmount -> userAmount >= bookAmount
-
---   let checkUser :: (UserId, Balances) -> STM Bool
---       checkUser (user, userBals) = do
---         bookBals <- userBookBalances exchange user
---         let currenciesPending = M.toList bookBals
---         return $ all (checkUserBalance userBals) currenciesPending
---   allM checkUser $ M.toList usersBals
-
--- consistency_allCurrenciesExist :: ConsistencyCheck
--- consistency_allCurrenciesExist = \exchange -> do
---   usersBals <- userBalances exchange
---   bookBals <- bookBalances exchange
---   let valid currency = currency `elem` allCurrencies
---       checkBals bals = all valid $ M.keys bals
---       usersCheck = all checkBals usersBals
---       booksCheck = all valid $ M.keys bookBals
---   return $ usersCheck && booksCheck
-
--- consistency_noSelfTrades :: ConsistencyCheck
--- consistency_noSelfTrades = \exchange -> do
---   trades <- readTVar $ _exchange_trades exchange
---   return $ all checkTrade trades
---   where
---     checkTrade Trade{..} = _de_user _trade_from /= _de_user _trade_to
-  
-
--- installSanityChecks :: Exchange -> IO ()
--- installSanityChecks exchange =
---   atomically $ mapM_ installCheck [
---     consistency_noNegativeBalances,
---     consistency_ordersBackedByAccount,
---     consistency_allCurrenciesExist,
---     consistency_noSelfTrades
---   ]
---   where
---     installCheck check = always $ check exchange
--- Returns the highest bid, lowest ask, and the book with them removed.
-
