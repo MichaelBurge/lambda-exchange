@@ -44,3 +44,4 @@ deleteFindFirstSeqMap = deleteFindSeqMap (const True)
 
 price :: LimitOrder -> Double
 price LimitOrder{..} = ((/) `on` fromIntegral) _lorder_fromAmount _lorder_toAmount
+

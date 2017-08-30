@@ -228,11 +228,59 @@ unsafe_addAsk ask book@OrderBook{..} =
 isBid :: LimitOrder -> Bool
 isBid order =  _lorder_fromAmount order > 0
 
+rollupBalances :: Foldable f => f (UserId, Currency, Amount) -> M.Map UserId Balances
+rollupBalances = undefined
+
+destructBalances :: M.Map UserId Balances -> [(UserId, Currency, Amount)]
+destructBalances = undefined
+
+userExternalBalances :: Exchange -> STM (M.Map UserId Balances)
+userExternalBalances Exchange{..} = do
+  externals <- readTVar _exchange_external
+  let mkDelta (Tagged SingleEntry{..}) =
+        (_se_account, _se_currency, _se_amount)
+  return $ rollupBalances $ map mkDelta externals
+
+userInternalBalances :: Exchange -> STM (M.Map UserId Balances)
+userInternalBalances Exchange{..} = do
+  trades <- readTVar _exchange_trades
+  let mkDeltasDe DoubleEntry{..} =
+        [(_de_fromAccount, _de_currency, -_de_amount),
+         (_de_toAccount, _de_currency, _de_amount)]
+  let mkDeltas Trade{..} =
+        concatMap mkDeltasDe [_trade_from, _trade_to]
+  return $ rollupBalances $ concatMap mkDeltas trades
+
+userHeldBalances :: Exchange -> STM (M.Map UserId Balances)
+userHeldBalances Exchange{..} = do
+  book@OrderBook{..} <- readTVar _exchange_book
+  let mkDelta order@LimitOrder{..} =
+        if isBid order
+        then (_lorder_user, _book_fromCurrency, _lorder_fromAmount)
+        else (_lorder_user, _book_toCurrency, _lorder_toAmount)
+  return $ rollupBalances $ map mkDelta $ toList book
+  
+
 userBalances :: Exchange -> STM (M.Map UserId Balances)
-userBalances = undefined
+userBalances exchange = do
+  externals <- userExternalBalances exchange
+  internals <- userInternalBalances exchange
+  helds     <- userHeldBalances exchange
+  let deltas =
+        destructBalances externals <>
+        destructBalances internals <>
+        map (\(a,b,c) -> (a,b,-c)) (destructBalances helds)
+  return $ rollupBalances deltas
 
 bookBalances :: Exchange -> STM Balances
-bookBalances = undefined
+bookBalances exchange = do
+  balances <- userHeldBalances exchange
+  let deltas = map (\(a,b,c) -> (b,c)) $ destructBalances balances
+  return $ M.fromListWith (+) deltas
 
 userBookBalances :: Exchange -> UserId -> STM Balances
-userBookBalances = undefined
+userBookBalances exchange user = do
+  bals <- userBalances exchange
+  return $ case M.lookup user bals of
+    Nothing -> M.empty
+    Just userBals -> userBals

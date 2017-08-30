@@ -78,7 +78,7 @@ data External
 type ExternalTransfer = Tagged External SingleEntry
 
 data Exchange = Exchange {
-  _exchange_external :: TVar (Q.Seq External),
+  _exchange_external :: TVar (Q.Seq ExternalTransfer),
   _exchange_book     :: TVar OrderBook,
   _exchange_trades   :: TVar (Q.Seq Trade)
   }
