@@ -13,15 +13,6 @@ import Data.Tagged
 import LE.Types
 import LE.Map
 
-type ConsistencyCheck = Exchange -> STM Bool
-
-allCurrencies :: S.Set Currency
-allCurrencies = S.fromList [
-  "USD",
-  "BTC",
-  "ETH"
-  ]
-
 cancelBid :: Bid -> OrderBook -> OrderBook
 cancelBid bid book@OrderBook{..} =
   let k = price $ unTagged bid
@@ -228,12 +219,6 @@ unsafe_addAsk ask book@OrderBook{..} =
 isBid :: LimitOrder -> Bool
 isBid order =  _lorder_fromAmount order > 0
 
-rollupBalances :: Foldable f => f (UserId, Currency, Amount) -> M.Map UserId Balances
-rollupBalances = undefined
-
-destructBalances :: M.Map UserId Balances -> [(UserId, Currency, Amount)]
-destructBalances = undefined
-
 userExternalBalances :: Exchange -> STM (M.Map UserId Balances)
 userExternalBalances Exchange{..} = do
   externals <- readTVar _exchange_external
@@ -284,3 +269,17 @@ userBookBalances exchange user = do
   return $ case M.lookup user bals of
     Nothing -> M.empty
     Just userBals -> userBals
+
+rollupBalances :: (Functor f, Foldable f) => f (UserId, Currency, Amount) -> M.Map UserId Balances
+rollupBalances deltas =
+  let deltas' = map (\(a,b,c) -> (a, M.singleton b c)) deltas
+  in M.fromListWith (M.unionWith (+)) $ toList deltas'
+  
+destructBalances :: M.Map UserId Balances -> [(UserId, Currency, Amount)]
+destructBalances bals =
+  let deltas = M.toList $ map M.toList bals :: [(UserId, [(Currency, Amount)])]
+      deltas' = do
+        (userId, bals) <- deltas
+        (currency, amount) <- bals
+        return (userId, currency, amount)
+  in deltas'

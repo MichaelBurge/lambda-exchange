@@ -86,3 +86,5 @@ data Exchange = Exchange {
 
 _book_pair :: OrderBookF a -> CurrencyPair
 _book_pair OrderBook{..} = (_book_fromCurrency, _book_toCurrency)
+
+type ConsistencyCheck = Exchange -> STM Bool

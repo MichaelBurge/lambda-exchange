@@ -1,5 +1,24 @@
 module LE.Checks where
 
+import Protolude
+
+import Control.Monad.Loops
+import Control.Concurrent.STM
+import Control.Concurrent.STM.TVar
+import Prelude(error)
+
+import qualified Data.Map as M
+import qualified Data.Set as S
+
+import LE.Types
+import LE.Trading
+
+allCurrencies :: S.Set Currency
+allCurrencies = S.fromList [
+  "USD",
+  "BTC",
+  "ETH"
+  ]
 
 consistency_noNegativeBalances :: ConsistencyCheck
 consistency_noNegativeBalances = \exchange -> do
@@ -41,18 +60,21 @@ consistency_noSelfTrades = \exchange -> do
   trades <- readTVar $ _exchange_trades exchange
   return $ all checkTrade trades
   where
-    checkTrade Trade{..} = _de_user _trade_from /= _de_user _trade_to
+    checkDe DoubleEntry{..} = _de_fromAccount /= _de_toAccount
+    checkTrade Trade{..} = checkDe _trade_from && checkDe _trade_to
   
 
 installSanityChecks :: Exchange -> IO ()
-installSanityChecks exchange =
+installSanityChecks exchange = do
+  x exchange
+  Prelude.error "derp"
+  
+x exchange = do
   atomically $ mapM_ installCheck [
-    consistency_noNegativeBalances,
-    consistency_ordersBackedByAccount,
-    consistency_allCurrenciesExist,
+    -- consistency_noNegativeBalances,
+    -- consistency_ordersBackedByAccount,
+    -- consistency_allCurrenciesExist,
     consistency_noSelfTrades
-  ]
+    ]
   where
     installCheck check = always $ check exchange
-Returns the highest bid, lowest ask, and the book with them removed.
-

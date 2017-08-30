@@ -1,6 +1,6 @@
 module Main where
 
-import Lib
+import LE.Networking
 
 main :: IO ()
-main = someFunc
+main = serverMain

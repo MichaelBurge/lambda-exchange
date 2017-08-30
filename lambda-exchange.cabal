@@ -11,12 +11,20 @@ build-type:          Simple
 extra-source-files:  README.md
 cabal-version:       >=1.10
 
+executable le
+  hs-source-dirs:      app
+  main-is:             Main.hs
+  build-depends:       base >= 4.7 && < 5
+                     , lambda-exchange
+  default-language:    Haskell2010
+                     
 library
   hs-source-dirs:      src
   exposed-modules:     LE.Types
                        LE.Trading
                        LE.Networking
                        LE.Map
+                       LE.Checks
   build-depends:       base >= 4.7 && < 5
                      , protolude
                      , containers
