@@ -73,17 +73,18 @@ data Response_AddOrder = Response_AddBid {
 data Response_CreateMoney = Response_CreateMoney deriving (Eq, Show, Generic)
 
 data Response_ListBalances = Response_ListBalances {
-  _resListBalances_externals :: M.Map UserId Balances,
-  _resListBalances_internals :: M.Map UserId Balances,
-  _resListBalances_helds     :: M.Map UserId Balances
+  _resListBalances_externals :: [(UserId, Currency, Amount)],
+  _resListBalances_internals :: [(UserId, Currency, Amount)],
+  _resListBalances_helds     :: [(UserId, Currency, Amount)],
+  _resListBalances_totalBals :: [(UserId, Currency, Amount)],
+  _resListBalances_bookBals  :: [(Currency, Amount)]
   } deriving (Eq, Show, Generic)
 
 serverMain :: IO ()
 serverMain = do
   state <- initialize
   installSanityChecks state
-  panic "hello"
-  print $ encode $ Request_ListOrders Nothing
+  print $ encode $ Request_ListBalances
   putStrLn $ "Listening on " ++ show le_port
   run le_port $ \req respond ->
     let ?req = req
@@ -97,6 +98,7 @@ serverMain = do
         ("listOrders" : _,  "POST") -> withParsedRequest body api_listOrders
         ("addOrder" : _,    "POST") -> withParsedRequest body api_addOrder
         ("cancelOrder" : _, "POST") -> withParsedRequest body api_cancelOrder
+        ("listBalances" : _, "POST") -> withParsedRequest body api_listBalances
         _ -> respond (W.responseLBS status404 [] "Unknown path")
 
 withParsedRequest :: FromJSON a => BSL.ByteString -> HandlerT (a -> IO ResponseReceived)
@@ -119,6 +121,17 @@ api_listOrders _ = do
   let Exchange{..} = ?state
   book <- readTVarIO _exchange_book
   ?respond $ W.responseLBS status200 [] $ encode $ Response_ListOrders $ toList book
+
+api_listBalances :: HandlerT Request_ListOrders
+api_listBalances _ = do
+  res <- atomically $ do
+    userExternals <- destructBalances <$> userExternalBalances ?state
+    userInternals <- destructBalances <$> userInternalBalances ?state
+    userHelds     <- destructBalances <$> userHeldBalances ?state
+    userBals <- destructBalances <$> userBalances ?state
+    bookBals <- M.toList <$> bookBalances ?state
+    return $ Response_ListBalances userExternals userInternals userHelds userBals bookBals
+  ?respond $ W.responseLBS status200 [] $ encode res
 
 api_cancelOrder :: HandlerT Request_CancelOrder
 api_cancelOrder req = do
@@ -190,6 +203,8 @@ instance FromJSON Request_AddOrder where
   parseJSON = genericParseJSON customOptions
 instance FromJSON Request_CreateMoney where
   parseJSON = genericParseJSON customOptions
+instance FromJSON Request_ListBalances where
+  parseJSON = genericParseJSON customOptions
 instance FromJSON Response_ListOrders where
   parseJSON = genericParseJSON customOptions
 instance FromJSON Response_CancelOrder where
@@ -197,6 +212,8 @@ instance FromJSON Response_CancelOrder where
 instance FromJSON Response_AddOrder where
   parseJSON = genericParseJSON customOptions
 instance FromJSON Response_CreateMoney where
+  parseJSON = genericParseJSON customOptions
+instance FromJSON Response_ListBalances where
   parseJSON = genericParseJSON customOptions
 instance FromJSON Trade where
   parseJSON = genericParseJSON customOptions
@@ -213,6 +230,8 @@ instance ToJSON Request_AddOrder where
   toJSON = genericToJSON customOptions
 instance ToJSON Request_CreateMoney where
   toJSON = genericToJSON customOptions
+instance ToJSON Request_ListBalances where
+  toJSON = genericToJSON customOptions
 instance ToJSON Response_ListOrders where
   toJSON = genericToJSON customOptions
 instance ToJSON Response_CancelOrder where
@@ -220,6 +239,8 @@ instance ToJSON Response_CancelOrder where
 instance ToJSON Response_AddOrder where
   toJSON = genericToJSON customOptions
 instance ToJSON Response_CreateMoney where
+  toJSON = genericToJSON customOptions
+instance ToJSON Response_ListBalances where
   toJSON = genericToJSON customOptions
 instance ToJSON Trade where
   toJSON = genericToJSON customOptions

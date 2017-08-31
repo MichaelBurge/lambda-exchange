@@ -25,7 +25,9 @@ consistency_noNegativeBalances = \exchange -> do
   bals <- userBalances exchange
   let checkUser (userId, balances) =
         flip all (M.toList balances) $ \(currency, balance) ->
-        balance >= 0
+        if balance >= 0
+        then True
+        else error $ "Negative balance for " <> show (userId, currency, balance)
   return $ all checkUser $ M.toList bals
 
 consistency_ordersBackedByAccount :: ConsistencyCheck
@@ -66,15 +68,15 @@ consistency_noSelfTrades = \exchange -> do
 
 installSanityChecks :: Exchange -> IO ()
 installSanityChecks exchange = do
-  x exchange
-  Prelude.error "derp"
-  
-x exchange = do
   atomically $ mapM_ installCheck [
-    -- consistency_noNegativeBalances,
-    -- consistency_ordersBackedByAccount,
-    -- consistency_allCurrenciesExist,
-    consistency_noSelfTrades
+    (consistency_noNegativeBalances, "No negative balances"),
+    (consistency_ordersBackedByAccount, "Orders must be backed by account"),
+    (consistency_allCurrenciesExist, "Non-existent currency"),
+    (consistency_noSelfTrades, "Users cannot trade with themselves")
     ]
   where
-    installCheck check = always $ check exchange
+    installCheck (check, message) = alwaysSucceeds $ do
+      b <- check exchange
+      if b
+        then return ()
+        else error message

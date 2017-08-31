@@ -161,7 +161,7 @@ mergeBid (fromCurrency, toCurrency) bid ask =
 
       unitPrice = buyerPrice
       numUnits = min n1 n2
-      toAmount = unitPrice * numUnits
+      toAmount = ceiling (fi numUnits / fi unitPrice)
       fromTransfer = DoubleEntry {
         _de_fromAccount = seller,
         _de_toAccount   = buyer,
@@ -175,7 +175,7 @@ mergeBid (fromCurrency, toCurrency) bid ask =
         _de_currency    = toCurrency
         }
       trade = Trade fromTransfer toTransfer
-      (mNewBid, mNewAsk) = case n1 `compare` n2 of
+      (mNewBid, mNewAsk) = case d1 `compare` d2 of
         -- Case 1: Buyer is done; seller still has inventory
         LT -> let newAsk = Tagged $ LimitOrder {
                     _lorder_user       = seller,
